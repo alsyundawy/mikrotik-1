@@ -1,7 +1,7 @@
 # 
 # Script Load Balance Fail Over 2 ISP (Sama Bandwidth)
 # 
-# Last Update: 28/04/2020 04:30:35 GMT+7
+# Last Update: 25/04/2021 00:28:35 GMT+7
 # 
 # Project website: https://kakiteng.com 
 # 
@@ -25,28 +25,29 @@
 /ip firewall mangle
 add action=mark-connection chain=prerouting comment="Pulang Pergi Lewat WAN yang Sama" connection-mark=no-mark in-interface=ether1>ISP1 new-connection-mark=conn_in_isp1 passthrough=yes
 add action=mark-connection chain=prerouting connection-mark=no-mark in-interface=ether2>ISP2 new-connection-mark=conn_in_isp2 passthrough=yes
-add action=mark-routing chain=output connection-mark=conn_in_isp1 dst-address-type=!local new-routing-mark=ISP1 passthrough=yes
-add action=mark-routing chain=output connection-mark=conn_in_isp2 dst-address-type=!local new-routing-mark=ISP2 passthrough=yes
-add action=jump chain=prerouting comment="======= PCC Jumper TCP 80,8080 on Global Address =======" dst-address-list=!network_IPv4 dst-port=80,8080 in-interface=ether3>LOKAL jump-target=pcc-balancer_80 protocol=tcp
+add action=mark-routing chain=output connection-mark=conn_in_isp1 new-routing-mark=ISP1 passthrough=yes
+add action=mark-routing chain=output connection-mark=conn_in_isp2 new-routing-mark=ISP2 passthrough=yes
+add action=jump chain=prerouting comment="+++++++++++ PCC Jumper For TCP 80,8080 & UDP 443 +++++++++++" dst-address-list=!network_IPv4 dst-port=80,8080 in-interface=ether3>LOKAL jump-target=pcc-balancer_80 protocol=tcp
+add action=jump chain=prerouting dst-address-list=!network_IPv4 dst-port=443 in-interface=ether3>LOKAL jump-target=pcc-balancer_80 protocol=udp
 add action=mark-connection chain=pcc-balancer_80 in-interface=ether3>LOKAL new-connection-mark=conn_pcc_80-1 passthrough=yes per-connection-classifier=src-address-and-port:2/0
 add action=mark-connection chain=pcc-balancer_80 in-interface=ether3>LOKAL new-connection-mark=conn_pcc_80-2 passthrough=yes per-connection-classifier=src-address-and-port:2/1
 add action=return chain=pcc-balancer_80 in-interface=ether3>LOKAL
-add action=mark-routing chain=prerouting comment="Route Traffic 80,8080 on Jumper Global Address" connection-mark=conn_pcc_80-1 in-interface=ether3>LOKAL new-routing-mark=ISP2 passthrough=no
+add action=mark-routing chain=prerouting comment="Route Traffic TCP 80,8080 & UDP 443" connection-mark=conn_pcc_80-1 in-interface=ether3>LOKAL new-routing-mark=ISP2 passthrough=no
 add action=mark-routing chain=prerouting connection-mark=conn_pcc_80-2 in-interface=ether3>LOKAL new-routing-mark=ISP1 passthrough=no
-add action=jump chain=prerouting comment="========= PCC Jumper For Any Traffic Global Address =========" dst-address-list=!network_IPv4 in-interface=ether3>LOKAL jump-target=pcc-balancer_any protocol=!ospf
+add action=jump chain=prerouting comment="++++++++++++++++ PCC Jumper For Global Traffic++++++++++++++++" dst-address-list=!network_IPv4 in-interface=ether3>LOKAL jump-target=pcc-balancer_any protocol=!ospf
 add action=mark-connection chain=pcc-balancer_any in-interface=ether3>LOKAL new-connection-mark=conn_pcc_any-1 passthrough=yes per-connection-classifier=dst-address-and-port:2/0
 add action=mark-connection chain=pcc-balancer_any in-interface=ether3>LOKAL new-connection-mark=conn_pcc_any-2 passthrough=yes per-connection-classifier=dst-address-and-port:2/1
 add action=return chain=pcc-balancer_any in-interface=ether3>LOKAL
-add action=mark-routing chain=prerouting comment="Route Any Traffic on Jumper Global Address" connection-mark=conn_pcc_any-1 in-interface=ether3>LOKAL new-routing-mark=ISP1 passthrough=no
+add action=mark-routing chain=prerouting comment="Route For Global Traffic" connection-mark=conn_pcc_any-1 in-interface=ether3>LOKAL new-routing-mark=ISP1 passthrough=no
 add action=mark-routing chain=prerouting connection-mark=conn_pcc_any-2 in-interface=ether3>LOKAL new-routing-mark=ISP2 passthrough=no
 
 /ip route
-add comment="Gateway ISP1" distance=1 dst-address=8.8.8.8 gateway=192.168.100.1
-add comment="Gateway ISP2" distance=1 dst-address=8.8.4.4 gateway=192.168.200.1
-add check-gateway=ping comment="Koneksi Utama ke ISP1" distance=1 gateway=8.8.8.8 target-scope=30
-add check-gateway=ping comment="Koneksi Fail Over ke ISP2" distance=2 gateway=8.8.4.4 target-scope=30
-add check-gateway=ping distance=1 gateway=8.8.8.8 routing-mark=ISP1 target-scope=30
-add check-gateway=ping distance=1 gateway=8.8.4.4 routing-mark=ISP2 target-scope=30
+add comment="Gateway ISP1" distance=1 dst-address=9.9.9.9 gateway=192.168.100.1
+add comment="Gateway ISP2" distance=1 dst-address=9.9.9.10 gateway=192.168.200.1
+add check-gateway=ping comment="Koneksi Utama ke ISP1" distance=1 gateway=9.9.9.9 target-scope=30
+add check-gateway=ping comment="Koneksi Fail Over ke ISP2" distance=2 gateway=9.9.9.10 target-scope=30
+add check-gateway=ping distance=1 gateway=9.9.9.9 routing-mark=ISP1 target-scope=30
+add check-gateway=ping distance=1 gateway=9.9.9.10 routing-mark=ISP2 target-scope=30
 
 /system note
 set note="      _  _  _     _      _\
@@ -72,6 +73,6 @@ add address=224.0.0.0/4 list=network_IPv4
 add address=10.0.0.0/8 list=network_IPv4
 add address=172.16.0.0/12 list=network_IPv4
 add address=192.168.0.0/16 list=network_IPv4
-add address=8.8.8.8 list=network_IPv4
-add address=8.8.4.4 list=network_IPv4
+
+
 
